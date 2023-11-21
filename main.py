@@ -1,75 +1,71 @@
 import dearpygui.dearpygui as dpg
 import numpy as np
-
-from binary_signal import getBinarySignal
-
-
-# Params
-# sampling_frequency = 2150
-# reference_sequence_length = 50
-# bandwidth = 96
-# carrier_frequency = 96
-
-# Calculated params
-# target_sequence_length = 2 * reference_sequence_length  # bits
-# target_signal_duration = target_sequence_length / bandwidth  # seconds
-# # TODO: delete this as far as possible
-# samples_per_bit = sampling_frequency // bandwidth
-# # reference_signal_length = reference_sequence_length * samples_per_bit
-# target_signal_length = target_sequence_length * samples_per_bit
-
-# ALGORITHM ############################################################################################################
+import scipy as sci
 
 
-# Generate target signal
-# target_signal_xis = np.arange(0, target_signal_duration, 1 / sampling_frequency)  # x-samples
-# target_signal_yis = [target_sequence[int(np.floor(y * bandwidth))] for y in target_signal_xis]  # y-samples
-# print("target_samples:", len(target_signal_xis))
+def applyNoise(signal, snr):
+    # Calculate the power of the signal
+    signal_power = np.square(signal).mean()
+    # Calculate the noise power based on the desired SNR and signal power
+    noise_power = signal_power / (10 ** (snr / 10))
+    # Generate the noise with the calculated power
+    noise = np.random.normal(0, np.sqrt(noise_power), len(signal))
+    return signal + noise
 
-# TODO: delete this
-# Generate target signal 2
-# target_signal_xis = np.array([i / sampling_frequency for i in range(target_signal_length)])
-# target_signal_yis = getBinarySignal(target_sequence, target_sequence_length, samples_per_bit)
-# print("target_samples_2: ", len(target_signal_xis))
 
-# Generate ASK
-# ampl0 = 0.1
-# ampl1 = 1.0
-# carrier_signal = np.sin(2 * np.pi * carrier_frequency * target_signal_xis)
-# new_binary = [(ampl0 if b == 0 else ampl1) for b in target_signal_yis]
-# ask_signal = carrier_signal * new_binary
+def ask(signal_xis, signal_yis, carrier_frequency, ampl0, ampl1):
+    new_binary = [(ampl0 if b == 0 else ampl1) for b in signal_yis]
+    return np.sin(2 * np.pi * carrier_frequency * signal_xis) * new_binary
 
 
 def process():
+    sampling_frequency = dpg.get_value("sampling_frequency") * 1000
     reference_sequence_length = dpg.get_value("reference_sequence_length")
-    target_sequence_length = 2 * reference_sequence_length
+    baud_rate = dpg.get_value("baud_rate")
+    carrier_frequency = dpg.get_value("carrier_frequency") * 1000
+    time_delay = dpg.get_value("time_delay")
+    snr = dpg.get_value("snr")
+    target_sequence_length = 2 * reference_sequence_length  # bits
+    target_signal_duration = target_sequence_length / baud_rate  # seconds
+    samples_per_bit = sampling_frequency // baud_rate
 
     # Generate target sequence
     target_sequence = np.random.randint(2, size=target_sequence_length)
 
-    # sampling_frequency = dpg.get_value("input_sampling_frequency")
-    # reference_bits = dpg.get_value("input_reference_bits")
-    # bandwidth = dpg.get_value("input_bandwidth")
-    # snr = dpg.get_value("input_snr")
-    # core.init(sampling_frequency, reference_bits, bandwidth, snr)
-    #
-    # # Update target chart
-    # dpg.set_value("target_series", [core.target_samples, core.target_ask_signal])
-    # dpg.fit_axis_data("target_x_axis")
-    # dpg.fit_axis_data("target_y_axis")
-    #
-    # # Update reference chart
-    # dpg.set_value("reference_series", [core.reference_samples, core.reference_ask_signal])
-    # dpg.fit_axis_data("reference_x_axis")
-    # dpg.fit_axis_data("reference_y_axis")
-    #
-    # # Update convolution chart
-    # y = core.ask_correlation
-    # dpg.set_value("convolution_series", [np.arange(len(core.ask_correlation)), y])
-    # dpg.fit_axis_data("convolution_x_axis")
-    # # dpg.fit_axis_data("convolution_y_axis")
-    # dpg.set_axis_limits("convolution_y_axis", ymin=0, ymax=np.max(y))
-    pass
+    # Generate target signal
+    target_signal_xis = np.arange(0, target_signal_duration, 1 / sampling_frequency)  # x-samples
+    target_signal_yis = [target_sequence[int(np.floor(y * baud_rate))] for y in target_signal_xis]  # y-samples
+    print(len(target_signal_xis))
+
+    # ASK
+    ampl0 = dpg.get_value("ampl0")
+    ampl1 = dpg.get_value("ampl1")
+    target_ask_yis = ask(target_signal_xis, target_signal_yis, carrier_frequency, ampl0, ampl1)
+    offset = int(np.rint((time_delay / 1000) * sampling_frequency))
+    reference_ask_xis = target_signal_xis[offset:offset + samples_per_bit * reference_sequence_length]
+    reference_ask_yis = target_ask_yis[offset:offset + samples_per_bit * reference_sequence_length]
+
+    # Apply noise
+    if dpg.get_value("enable_noise"):
+        target_ask_yis = applyNoise(target_ask_yis, snr)
+        reference_ask_yis = applyNoise(reference_ask_yis, 10)
+
+    ask_correlation_yis = sci.signal.correlate(target_ask_yis, reference_ask_yis)
+    ask_correlation_xis = np.arange(len(ask_correlation_yis))
+
+    # Update charts
+    dpg.set_value("reference_series", [reference_ask_xis, reference_ask_yis])
+    dpg.fit_axis_data("reference_x_axis")
+    dpg.fit_axis_data("reference_y_axis")
+
+    dpg.set_value("target_series_1", [target_signal_xis, target_ask_yis])
+    dpg.set_value("target_series_2", [reference_ask_xis, reference_ask_yis])
+    dpg.fit_axis_data("target_x_axis")
+    dpg.fit_axis_data("target_y_axis")
+
+    dpg.set_value("convolution_series", [ask_correlation_xis, ask_correlation_yis])
+    dpg.fit_axis_data("convolution_x_axis")
+    dpg.fit_axis_data("convolution_y_axis")
 
 
 # Window
@@ -91,10 +87,11 @@ with dpg.window() as main_window:
                 dpg.add_input_float(width=-1, default_value=0.5, tag='carrier_frequency')
                 dpg.add_spacer()
                 dpg.add_text('Time Delay [ms]:')
-                dpg.add_input_int(width=-1, default_value=0, tag='time_delay')
+                dpg.add_input_int(width=-1, default_value=100, tag='time_delay')
                 dpg.add_spacer()
                 dpg.add_text('SNR [dB]:')
                 dpg.add_input_int(width=-1, default_value=10, tag='snr')
+                dpg.add_checkbox(label="Enable Noise", tag="enable_noise", default_value=True)
                 dpg.add_spacer()
 
             with dpg.collapsing_header(label="Modulation parameters"):
@@ -110,21 +107,26 @@ with dpg.window() as main_window:
                 dpg.add_text('Carrier Frequency Offset [kHz]:')
                 dpg.add_input_float(width=-1, default_value=0.05, tag='carrier_frequency_offset')
 
-            dpg.add_button(label="Generate Signal", width=-1)
+            dpg.add_button(label="Generate Signal", width=-1, callback=process)
 
         with dpg.tab_bar():
             with dpg.tab(label="Main", tag="main_tab"):
                 with dpg.child_window(tag="plot_window", border=False) as plot_child_window:
                     with dpg.subplots(rows=3, columns=1, no_title=True, width=-1, height=-1):
-                        with dpg.plot(label="Target Signal", anti_aliased=True):
-                            dpg.add_plot_axis(dpg.mvXAxis, label="time [ms]", tag="target_x_axis")
-                            dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="target_y_axis")
-                            dpg.add_line_series([], [], parent="target_y_axis", tag="target_series")
-
                         with dpg.plot(label="Reference Signal", anti_aliased=True):
+                            dpg.add_plot_legend()
                             dpg.add_plot_axis(dpg.mvXAxis, label="time [ms]", tag="reference_x_axis")
                             dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="reference_y_axis")
-                            dpg.add_line_series([], [], parent="reference_y_axis", tag="reference_series")
+                            dpg.add_line_series([], [], parent="reference_y_axis", tag="reference_series",
+                                                label='reference')
+
+                        with dpg.plot(label="Target/Reference Signal", anti_aliased=True):
+                            dpg.add_plot_legend()
+                            dpg.add_plot_axis(dpg.mvXAxis, label="time [ms]", tag="target_x_axis")
+                            dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="target_y_axis")
+                            dpg.add_line_series([], [], parent="target_y_axis", tag="target_series_1", label='target')
+                            dpg.add_line_series([], [], parent="target_y_axis", tag="target_series_2",
+                                                label='reference')
 
                         with dpg.plot(label="Convolution", anti_aliased=True):
                             dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="convolution_x_axis")
