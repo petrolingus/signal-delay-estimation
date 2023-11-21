@@ -35,35 +35,35 @@ def process():
     # Generate target signal
     target_signal_xis = np.arange(0, target_signal_duration, 1 / sampling_frequency)  # x-samples
     target_signal_yis = [target_sequence[int(np.floor(y * baud_rate))] for y in target_signal_xis]  # y-samples
-    print(len(target_signal_xis))
 
     # ASK
     ampl0 = dpg.get_value("ampl0")
     ampl1 = dpg.get_value("ampl1")
-    target_ask_yis = ask(target_signal_xis, target_signal_yis, carrier_frequency, ampl0, ampl1)
+    target_modulation_yis = ask(target_signal_xis, target_signal_yis, carrier_frequency, ampl0, ampl1)
     offset = int(np.rint((time_delay / 1000) * sampling_frequency))
-    reference_ask_xis = target_signal_xis[offset:offset + samples_per_bit * reference_sequence_length]
-    reference_ask_yis = target_ask_yis[offset:offset + samples_per_bit * reference_sequence_length]
+    reference_modulation_xis = target_signal_xis[offset:offset + samples_per_bit * reference_sequence_length]
+    reference_modulation_yis = target_modulation_yis[offset:offset + samples_per_bit * reference_sequence_length]
 
     # Apply noise
     if dpg.get_value("enable_noise"):
-        target_ask_yis = applyNoise(target_ask_yis, snr)
-        reference_ask_yis = applyNoise(reference_ask_yis, 10)
+        target_modulation_yis = applyNoise(target_modulation_yis, snr)
+        reference_modulation_yis = applyNoise(reference_modulation_yis, 10)
 
-    ask_correlation_yis = sci.signal.correlate(target_ask_yis, reference_ask_yis)
-    ask_correlation_xis = np.arange(len(ask_correlation_yis))
+    # Calculate correlation
+    correlation_yis = sci.signal.correlate(target_modulation_yis, reference_modulation_yis)
+    correlation_xis = np.arange(len(correlation_yis))
 
     # Update charts
-    dpg.set_value("reference_series", [reference_ask_xis, reference_ask_yis])
+    dpg.set_value("reference_series", [reference_modulation_xis, reference_modulation_yis])
     dpg.fit_axis_data("reference_x_axis")
     dpg.fit_axis_data("reference_y_axis")
 
-    dpg.set_value("target_series_1", [target_signal_xis, target_ask_yis])
-    dpg.set_value("target_series_2", [reference_ask_xis, reference_ask_yis])
+    dpg.set_value("target_series_1", [target_signal_xis, target_modulation_yis])
+    dpg.set_value("target_series_2", [reference_modulation_xis, reference_modulation_yis])
     dpg.fit_axis_data("target_x_axis")
     dpg.fit_axis_data("target_y_axis")
 
-    dpg.set_value("convolution_series", [ask_correlation_xis, ask_correlation_yis])
+    dpg.set_value("convolution_series", [correlation_xis, correlation_yis])
     dpg.fit_axis_data("convolution_x_axis")
     dpg.fit_axis_data("convolution_y_axis")
 
