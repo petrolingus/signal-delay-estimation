@@ -1,6 +1,9 @@
 import dearpygui.dearpygui as dpg
 import numpy as np
 import scipy as sci
+import time
+import collections
+import threading
 
 
 def applyNoise(signal, snr):
@@ -16,6 +19,47 @@ def applyNoise(signal, snr):
 def ask(signal_xis, signal_yis, carrier_frequency, ampl0, ampl1):
     new_binary = [(ampl0 if b == 0 else ampl1) for b in signal_yis]
     return np.sin(2 * np.pi * carrier_frequency * signal_xis) * new_binary
+
+
+def update_data():
+    sampling_frequency = dpg.get_value("sampling_frequency") * 1000
+    reference_sequence_length = dpg.get_value("reference_sequence_length")
+    baud_rate = dpg.get_value("baud_rate")
+    carrier_frequency = dpg.get_value("carrier_frequency") * 1000
+    time_delay = dpg.get_value("time_delay")
+    snr = dpg.get_value("snr")
+    target_sequence_length = 2 * reference_sequence_length  # bits
+    target_signal_duration = target_sequence_length / baud_rate  # seconds
+    samples_per_bit = sampling_frequency // baud_rate
+
+    for snr in np.arange(10, -11, -1):
+        print(snr)
+        for i in range(100):
+            pass
+
+    sample = 1
+    t0 = time.time()
+    frequency = 1.0
+
+    data_y = [0.0] * 100
+    data_x = [0.0] * 100
+    print('foobar')
+
+    while True:
+        # Get new data sample. Note we need both x and y values
+        # if we want a meaningful axis unit.
+        t = time.time() - t0
+        y = np.sin(2.0 * np.pi * frequency * t)
+        data_x.append(t)
+        data_y.append(y)
+
+        # set the series x and y to the last nsamples
+        dpg.set_value('research_series', [np.array(data_x), np.array(data_y)])
+        dpg.fit_axis_data('research_x_axis')
+        dpg.fit_axis_data('research_y_axis')
+
+        time.sleep(0.01)
+        sample = sample + 1
 
 
 def process():
@@ -40,7 +84,12 @@ def process():
     ampl0 = dpg.get_value("ampl0")
     ampl1 = dpg.get_value("ampl1")
     target_modulation_yis = ask(target_signal_xis, target_signal_yis, carrier_frequency, ampl0, ampl1)
+
+    # Generate reference signal and offset it
     offset = int(np.rint((time_delay / 1000) * sampling_frequency))
+    if offset + samples_per_bit * reference_sequence_length > target_signal_xis.size:
+        offset = target_signal_xis.size - samples_per_bit * reference_sequence_length
+        dpg.set_value('time_delay', int((offset / sampling_frequency) * 1000))
     reference_modulation_xis = target_signal_xis[offset:offset + samples_per_bit * reference_sequence_length]
     reference_modulation_yis = target_modulation_yis[offset:offset + samples_per_bit * reference_sequence_length]
 
@@ -50,8 +99,8 @@ def process():
         reference_modulation_yis = applyNoise(reference_modulation_yis, 10)
 
     # Calculate correlation
-    correlation_yis = sci.signal.correlate(target_modulation_yis, reference_modulation_yis)
-    correlation_xis = np.arange(len(correlation_yis))
+    correlation_yis = sci.signal.correlate(target_modulation_yis, reference_modulation_yis, mode='valid')
+    correlation_xis = [i / sampling_frequency for i in np.arange(len(correlation_yis))]
 
     # Update charts
     dpg.set_value("reference_series", [reference_modulation_xis, reference_modulation_yis])
@@ -139,11 +188,15 @@ with dpg.window() as main_window:
                         with dpg.plot(label="Target Signal", anti_aliased=True):
                             dpg.add_plot_axis(dpg.mvXAxis, label="time [ms]", tag="research_x_axis")
                             dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="research_y_axis")
-                            dpg.add_line_series([], [], parent="target_y_axis", tag="research_series")
+                            dpg.add_line_series([], [], parent="research_y_axis", tag="research_series")
 
 dpg.create_viewport(title="Viewport Title", width=1920, height=1080)
 dpg.setup_dearpygui()
 dpg.show_viewport()
 dpg.set_primary_window(main_window, True)
+
+# thread = threading.Thread(target=update_data)
+# thread.start()
+
 dpg.start_dearpygui()
 dpg.destroy_context()
