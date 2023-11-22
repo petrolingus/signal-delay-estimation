@@ -77,7 +77,7 @@ class Core:
 
         # Calculate correlation
         self.correlation_yis = sci.signal.correlate(self.target_modulation_yis, self.reference_modulation_yis,
-                                                    mode='valid')
+                                                    mode='valid', method='auto')
         self.correlation_xis = [i / self.sampling_frequency for i in np.arange(len(self.correlation_yis))]
 
         # Find maximum

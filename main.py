@@ -9,7 +9,6 @@ from core import Core
 
 
 def research():
-
     sampling_frequency = dpg.get_value("sampling_frequency")
     reference_sequence_length = dpg.get_value("reference_sequence_length")
     baud_rate = dpg.get_value("baud_rate")
@@ -31,13 +30,10 @@ def research():
     core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, 0,
                 enable_noise, ampl0, ampl1)
 
-    # result = core.process()
-    # print('result:', result)
-
-    n = 1000
+    n = 100
     data_x = []
     data_y = []
-    for snr in np.arange(-20, 11, 0.1):
+    for snr in np.linspace(-20, 10, 50):
         print('snr:', snr)
         core.setSnr(snr)
         counter = 0
@@ -46,26 +42,16 @@ def research():
                 counter += 1
         data_x.append(snr)
         y = counter / n
-        print(counter)
         data_y.append(y)
         dpg.set_value('research_series', [np.array(data_x), np.array(data_y)])
         dpg.fit_axis_data('research_x_axis')
         dpg.fit_axis_data('research_y_axis')
 
 
-    # while True:
-    #     # Get new data sample. Note we need both x and y values
-    #     # if we want a meaningful axis unit.
-    #     t = time.time() - t0
-    #     y = np.sin(2.0 * np.pi * frequency * t)
-    #     data_x.append(t)
-    #     data_y.append(y)
-    #
-    #     # set the series x and y to the last nsamples
-    #
-    #
-    #     time.sleep(0.01)
-    #     sample = sample + 1
+def research_start():
+    thread = threading.Thread(target=research)
+    thread.start()
+    dpg.set_value('tab_bar', 'research_tab')
 
 
 def process():
@@ -133,7 +119,7 @@ with dpg.window() as main_window:
                 dpg.add_radio_button(items=['ASK', 'FSK', 'CPFSK', 'BPSK'], default_value='ASK', tag='modulation_mode')
                 dpg.add_spacer()
                 dpg.add_text('Amplitude 0 [dB]:')
-                dpg.add_input_float(width=-1, default_value=0.1, tag='ampl0')
+                dpg.add_input_float(width=-1, default_value=0.5, tag='ampl0')
                 dpg.add_spacer()
                 dpg.add_text('Amplitude 1 [dB]:')
                 dpg.add_input_float(width=-1, default_value=1.0, tag='ampl1')
@@ -142,8 +128,9 @@ with dpg.window() as main_window:
                 dpg.add_input_float(width=-1, default_value=0.05, tag='carrier_frequency_offset')
 
             dpg.add_button(label="Generate Signal", width=-1, callback=process)
+            dpg.add_button(label="Start Research", width=-1, callback=research_start)
 
-        with dpg.tab_bar():
+        with dpg.tab_bar(tag='tab_bar'):
             with dpg.tab(label="Main", tag="main_tab"):
                 with dpg.child_window(tag="plot_window", border=False) as plot_child_window:
                     with dpg.subplots(rows=3, columns=1, no_title=True, width=-1, height=-1):
@@ -177,14 +164,11 @@ with dpg.window() as main_window:
                             dpg.add_plot_axis(dpg.mvXAxis, label="time [ms]", tag="research_x_axis")
                             dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="research_y_axis")
                             dpg.add_line_series([], [], parent="research_y_axis", tag="research_series")
+                            dpg.add_error_series([], [], [], [], parent="research_y_axis", tag="research_series_error")
 
 dpg.create_viewport(title="Viewport Title", width=1920, height=1080)
 dpg.setup_dearpygui()
 dpg.show_viewport()
 dpg.set_primary_window(main_window, True)
-
-thread = threading.Thread(target=research)
-thread.start()
-
 dpg.start_dearpygui()
 dpg.destroy_context()
