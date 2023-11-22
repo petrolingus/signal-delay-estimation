@@ -5,81 +5,25 @@ import asyncio
 from core import Core
 
 
-async def research():
+async def research(mode):
     sampling_frequency = dpg.get_value("sampling_frequency")
     reference_sequence_length = dpg.get_value("reference_sequence_length")
     baud_rate = dpg.get_value("baud_rate")
     carrier_frequency = dpg.get_value("carrier_frequency")
     time_delay = dpg.get_value("time_delay")
+    snr = dpg.get_value("snr")
+    enable_noise = dpg.get_value("enable_noise")
     ampl0 = dpg.get_value("ampl0")
     ampl1 = dpg.get_value("ampl1")
-    enable_noise = dpg.get_value("enable_noise")
+    carrier_frequency_offset = dpg.get_value("carrier_frequency_offset")
 
-    print('sampling_frequency:', sampling_frequency)
-    print('reference_sequence_length:', reference_sequence_length)
-    print('baud_rate:', baud_rate)
-    print('carrier_frequency:', carrier_frequency)
-    print('time_delay:', time_delay)
-    print('ampl0:', ampl0)
-    print('ampl1:', ampl1)
-    print('enable_noise:', enable_noise)
+    core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, snr,
+                enable_noise, mode, ampl0, ampl1, carrier_frequency_offset)
 
-    n = 100
+    n = 200
     data_y = []
     data_x = []
-    #
-    # map_foo = {}
-    # for i in np.linspace(-20, 10, 50):
-    #     map_foo[i] = 0
-    #     data_x.append(i)
-    #     data_y.append(0)
-    #
-    # async def hello2(snr):
-    #     core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay,
-    #                 snr, enable_noise, ampl0, ampl1)
-    #     if core.process():
-    #         map_foo[snr] += 1
-    #     await asyncio.sleep(0)
-    #
-    # async def hello(snr):
-    #     await asyncio.gather(*[hello2(snr) for _ in range(n)])
-    #
-    # await asyncio.gather(*[hello(snr) for snr in np.linspace(-20, 10, 50)])
-    #
-    # dpg.set_value('research_series', [np.array(data_x), np.array(data_y)])
-    # dpg.fit_axis_data('research_x_axis')
-    # dpg.fit_axis_data('research_y_axis')
-
-    # map_foo = {}
-    # for i in np.linspace(-20, 10, 50):
-    #     map_foo[i] = 0
-    #
-    # async def hello2(snr):
-    #     core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay,
-    #                 snr, enable_noise, ampl0, ampl1)
-    #     if core.process():
-    #         map_foo[snr] += 1
-    #     await asyncio.sleep(0)
-    #
-    # async def hello(snr):
-    #     await asyncio.gather(*[hello2(snr) for _ in range(n)])
-    #
-    # await asyncio.gather(*[hello(snr) for snr in np.linspace(-20, 10, 50)])
-    #
-    #
-    # for k in np.linspace(-20, 10, 50):
-    #     data_x.append(k)
-    #     data_y.append(map_foo[k] / n)
-    #
-    # dpg.set_value('research_series', [np.array(data_x), np.array(data_y)])
-    # dpg.fit_axis_data('research_x_axis')
-    # dpg.fit_axis_data('research_y_axis')
-
-    core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, 0,
-                enable_noise, ampl0, ampl1)
-
-    for snr in np.linspace(-20, 10, 50):
-        print('snr:', snr)
+    for snr in np.linspace(-20, 10, 20):
         core.setSnr(snr)
         counter = 0
         for i in range(n):
@@ -88,16 +32,21 @@ async def research():
         data_x.append(snr)
         y = counter / n
         data_y.append(y)
-        dpg.set_value('research_series', [np.array(data_x), np.array(data_y)])
+
+        dpg.set_value(mode, [np.array(data_x), np.array(data_y)])
         dpg.fit_axis_data('research_x_axis')
         dpg.fit_axis_data('research_y_axis')
+
+    await asyncio.sleep(0)
+
+
+async def hello():
+    await asyncio.gather(*[research(mode) for mode in ['ASK', 'FSK', 'PSK']])
 
 
 def research_start():
     dpg.set_value('tab_bar', 'research_tab')
-    asyncio.run(research())
-    # thread = threading.Thread(target=research)
-    # thread.start()
+    asyncio.run(hello())
 
 
 def process():
@@ -107,12 +56,14 @@ def process():
     carrier_frequency = dpg.get_value("carrier_frequency")
     time_delay = dpg.get_value("time_delay")
     snr = dpg.get_value("snr")
+    enable_noise = dpg.get_value("enable_noise")
+    modulation_mode = dpg.get_value('modulation_mode')
     ampl0 = dpg.get_value("ampl0")
     ampl1 = dpg.get_value("ampl1")
-    enable_noise = dpg.get_value("enable_noise")
+    carrier_frequency_offset = dpg.get_value("carrier_frequency_offset")
 
     core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, snr,
-                enable_noise, ampl0, ampl1)
+                enable_noise, modulation_mode, ampl0, ampl1, carrier_frequency_offset)
     core.process()
 
     # Draw drag lines
@@ -144,16 +95,16 @@ with dpg.window() as main_window:
                 dpg.add_input_int(width=-1, default_value=10, tag='sampling_frequency')
                 dpg.add_spacer()
                 dpg.add_text('Reference Sequence Length [bits]:')
-                dpg.add_input_int(width=-1, default_value=128, tag='reference_sequence_length')
+                dpg.add_input_int(width=-1, default_value=16, tag='reference_sequence_length')
                 dpg.add_spacer()
                 dpg.add_text('Baud Rate [bits/sec]:')
-                dpg.add_input_int(width=-1, default_value=500, tag='baud_rate')
+                dpg.add_input_int(width=-1, default_value=100, tag='baud_rate')
                 dpg.add_spacer()
                 dpg.add_text('Carrier Frequency [kHz]:')
-                dpg.add_input_float(width=-1, default_value=0.5, tag='carrier_frequency')
+                dpg.add_input_float(width=-1, default_value=1, tag='carrier_frequency')
                 dpg.add_spacer()
                 dpg.add_text('Time Delay [ms]:')
-                dpg.add_input_int(width=-1, default_value=100, tag='time_delay')
+                dpg.add_input_int(width=-1, default_value=10, tag='time_delay')
                 dpg.add_spacer()
                 dpg.add_text('SNR [dB]:')
                 dpg.add_input_int(width=-1, default_value=10, tag='snr')
@@ -162,7 +113,7 @@ with dpg.window() as main_window:
 
             with dpg.collapsing_header(label="Modulation parameters"):
                 dpg.add_text('Modulation mode:')
-                dpg.add_radio_button(items=['ASK', 'FSK', 'CPFSK', 'BPSK'], default_value='ASK', tag='modulation_mode')
+                dpg.add_radio_button(items=['ASK', 'FSK', 'PSK'], default_value='ASK', tag='modulation_mode')
                 dpg.add_spacer()
                 dpg.add_text('Amplitude 0 [dB]:')
                 dpg.add_input_float(width=-1, default_value=0.5, tag='ampl0')
@@ -198,7 +149,6 @@ with dpg.window() as main_window:
                         with dpg.plot(label="Convolution", anti_aliased=True) as plot:
                             dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="convolution_x_axis")
                             dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="convolution_y_axis")
-                            dpg.add_plot_axis(dpg.mvYAxis, label="foo", tag="foobar", )
                             dpg.add_line_series([], [], parent="convolution_y_axis", tag="convolution_series")
                             dpg.add_drag_line(label="min", color=[255, 0, 0, 255], tag='convolution_dline1')
                             dpg.add_drag_line(label="max", color=[255, 0, 0, 255], tag='convolution_dline2')
@@ -207,10 +157,12 @@ with dpg.window() as main_window:
                 with dpg.child_window(tag="research_window", border=False):
                     with dpg.subplots(rows=1, columns=1, no_title=True, width=-1, height=-1):
                         with dpg.plot(label="Target Signal", anti_aliased=True):
-                            dpg.add_plot_axis(dpg.mvXAxis, label="time [ms]", tag="research_x_axis")
-                            dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="research_y_axis")
-                            dpg.add_line_series([], [], parent="research_y_axis", tag="research_series")
-                            dpg.add_error_series([], [], [], [], parent="research_y_axis", tag="research_series_error")
+                            dpg.add_plot_legend()
+                            dpg.add_plot_axis(dpg.mvXAxis, label="SNR [dB]", tag="research_x_axis")
+                            dpg.add_plot_axis(dpg.mvYAxis, label="Probability", tag="research_y_axis")
+                            dpg.add_line_series([], [], parent="research_y_axis", tag='ASK', label='ASK')
+                            dpg.add_line_series([], [], parent="research_y_axis", tag='FSK', label='FSK')
+                            dpg.add_line_series([], [], parent="research_y_axis", tag='PSK', label='PSK')
 
 dpg.create_viewport(title="Signal Delay Estimation", width=1920, height=1080)
 dpg.setup_dearpygui()

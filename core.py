@@ -7,6 +7,19 @@ def ask(signal_xis, signal_yis, carrier_frequency, ampl0, ampl1):
     return np.sin(2 * np.pi * carrier_frequency * signal_xis) * new_binary
 
 
+def fsk(signal_xis, signal_yis, carrier_frequency: float, mod_amp: float):
+    df = 0.5 * mod_amp * carrier_frequency
+    f = np.choose(np.array(signal_yis), [np.repeat(carrier_frequency - df, np.array(signal_yis).size),
+                                         np.repeat(carrier_frequency + df, np.array(signal_yis).size)])
+    phase = np.cumsum(2 * np.pi * f * np.array(signal_xis))
+    return np.sin(phase)
+
+
+def psk(signal_xis, signal_yis, carrier_frequency):
+    phase = 2 * np.pi * carrier_frequency * signal_xis + np.pi * np.array(signal_yis)
+    return np.sin(phase)
+
+
 def applyNoise(signal, snr):
     # Calculate the power of the signal
     signal_power = np.square(signal).mean()
@@ -19,16 +32,18 @@ def applyNoise(signal, snr):
 
 class Core:
     def __init__(self, sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, snr,
-                 enable_noise, ampl0, ampl1):
+                 enable_noise, modulation_mode, ampl0, ampl1, carrier_frequency_offset):
         self.sampling_frequency = sampling_frequency * 1000  # Hz
         self.reference_sequence_length = reference_sequence_length
         self.baud_rate = baud_rate
         self.carrier_frequency = carrier_frequency * 1000  # Hz
         self.time_delay = time_delay / 1000  # seconds
         self.snr = snr
+        self.enable_noise = enable_noise
+        self.modulation_mode = modulation_mode
+        self.carrier_frequency_offset = carrier_frequency_offset
         self.ampl0 = ampl0
         self.ampl1 = ampl1
-        self.enable_noise = enable_noise
         # Calculations
         self.target_sequence_length = 2 * reference_sequence_length  # bits
         self.target_signal_duration = self.target_sequence_length / self.baud_rate  # seconds
@@ -55,9 +70,13 @@ class Core:
         target_signal_yis = [target_sequence[int(np.floor(y * self.baud_rate))] for y in
                              self.target_signal_xis]  # y-samples
 
-        # ASK
-        self.target_modulation_yis = ask(self.target_signal_xis, target_signal_yis, self.carrier_frequency, self.ampl0,
-                                         self.ampl1)
+        if self.modulation_mode == 'ASK':
+            self.target_modulation_yis = ask(self.target_signal_xis, target_signal_yis, self.carrier_frequency,
+                                             self.ampl0, self.ampl1)
+        elif self.modulation_mode == 'FSK':
+            self.target_modulation_yis = fsk(self.target_signal_xis, target_signal_yis, self.carrier_frequency, 1)
+        else:
+            self.target_modulation_yis = psk(self.target_signal_xis, target_signal_yis, self.carrier_frequency)
 
         # Generate reference signal and offset it
         offset = int(np.rint(self.time_delay * self.sampling_frequency))
@@ -77,7 +96,7 @@ class Core:
 
         # Calculate correlation
         self.correlation_yis = sci.signal.correlate(self.target_modulation_yis, self.reference_modulation_yis,
-                                                    mode='valid', method='auto')
+                                                    mode='valid', method='fft')
         self.correlation_xis = [i / self.sampling_frequency for i in np.arange(len(self.correlation_yis))]
 
         # Find maximum
