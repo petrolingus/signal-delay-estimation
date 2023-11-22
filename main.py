@@ -166,7 +166,7 @@ with dpg.window() as main_window:
                             dpg.add_line_series([], [], parent="research_y_axis", tag="research_series")
                             dpg.add_error_series([], [], [], [], parent="research_y_axis", tag="research_series_error")
 
-dpg.create_viewport(title="Viewport Title", width=1920, height=1080)
+dpg.create_viewport(title="Signal Delay Estimation", width=1920, height=1080)
 dpg.setup_dearpygui()
 dpg.show_viewport()
 dpg.set_primary_window(main_window, True)
