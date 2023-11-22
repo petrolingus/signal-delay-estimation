@@ -5,6 +5,8 @@ import time
 import collections
 import threading
 
+from core import Core
+
 
 def applyNoise(signal, snr):
     # Calculate the power of the signal
@@ -22,16 +24,6 @@ def ask(signal_xis, signal_yis, carrier_frequency, ampl0, ampl1):
 
 
 def update_data():
-    sampling_frequency = dpg.get_value("sampling_frequency") * 1000
-    reference_sequence_length = dpg.get_value("reference_sequence_length")
-    baud_rate = dpg.get_value("baud_rate")
-    carrier_frequency = dpg.get_value("carrier_frequency") * 1000
-    time_delay = dpg.get_value("time_delay")
-    snr = dpg.get_value("snr")
-    target_sequence_length = 2 * reference_sequence_length  # bits
-    target_signal_duration = target_sequence_length / baud_rate  # seconds
-    samples_per_bit = sampling_frequency // baud_rate
-
     for snr in np.arange(10, -11, -1):
         print(snr)
         for i in range(100):
@@ -63,56 +55,35 @@ def update_data():
 
 
 def process():
-    sampling_frequency = dpg.get_value("sampling_frequency") * 1000
+    sampling_frequency = dpg.get_value("sampling_frequency")
     reference_sequence_length = dpg.get_value("reference_sequence_length")
     baud_rate = dpg.get_value("baud_rate")
-    carrier_frequency = dpg.get_value("carrier_frequency") * 1000
+    carrier_frequency = dpg.get_value("carrier_frequency")
     time_delay = dpg.get_value("time_delay")
     snr = dpg.get_value("snr")
-    target_sequence_length = 2 * reference_sequence_length  # bits
-    target_signal_duration = target_sequence_length / baud_rate  # seconds
-    samples_per_bit = sampling_frequency // baud_rate
-
-    # Generate target sequence
-    target_sequence = np.random.randint(2, size=target_sequence_length)
-
-    # Generate target signal
-    target_signal_xis = np.arange(0, target_signal_duration, 1 / sampling_frequency)  # x-samples
-    target_signal_yis = [target_sequence[int(np.floor(y * baud_rate))] for y in target_signal_xis]  # y-samples
-
-    # ASK
     ampl0 = dpg.get_value("ampl0")
     ampl1 = dpg.get_value("ampl1")
-    target_modulation_yis = ask(target_signal_xis, target_signal_yis, carrier_frequency, ampl0, ampl1)
+    enable_noise = dpg.get_value("enable_noise")
 
-    # Generate reference signal and offset it
-    offset = int(np.rint((time_delay / 1000) * sampling_frequency))
-    if offset + samples_per_bit * reference_sequence_length > target_signal_xis.size:
-        offset = target_signal_xis.size - samples_per_bit * reference_sequence_length
-        dpg.set_value('time_delay', int((offset / sampling_frequency) * 1000))
-    reference_modulation_xis = target_signal_xis[offset:offset + samples_per_bit * reference_sequence_length]
-    reference_modulation_yis = target_modulation_yis[offset:offset + samples_per_bit * reference_sequence_length]
+    core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, snr,
+                enable_noise, ampl0, ampl1)
+    core.process()
 
-    # Apply noise
-    if dpg.get_value("enable_noise"):
-        target_modulation_yis = applyNoise(target_modulation_yis, snr)
-        reference_modulation_yis = applyNoise(reference_modulation_yis, 10)
-
-    # Calculate correlation
-    correlation_yis = sci.signal.correlate(target_modulation_yis, reference_modulation_yis, mode='valid')
-    correlation_xis = [i / sampling_frequency for i in np.arange(len(correlation_yis))]
+    # Draw drag lines
+    dpg.set_value('convolution_dline1', core.min_delay)
+    dpg.set_value('convolution_dline2', core.max_delay)
 
     # Update charts
-    dpg.set_value("reference_series", [reference_modulation_xis, reference_modulation_yis])
+    dpg.set_value("reference_series", [core.reference_modulation_xis, core.reference_modulation_yis])
     dpg.fit_axis_data("reference_x_axis")
     dpg.fit_axis_data("reference_y_axis")
 
-    dpg.set_value("target_series_1", [target_signal_xis, target_modulation_yis])
-    dpg.set_value("target_series_2", [reference_modulation_xis, reference_modulation_yis])
+    dpg.set_value("target_series_1", [core.target_signal_xis, core.target_modulation_yis])
+    dpg.set_value("target_series_2", [core.reference_modulation_xis, core.reference_modulation_yis])
     dpg.fit_axis_data("target_x_axis")
     dpg.fit_axis_data("target_y_axis")
 
-    dpg.set_value("convolution_series", [correlation_xis, correlation_yis])
+    dpg.set_value("convolution_series", [core.correlation_xis, core.correlation_yis])
     dpg.fit_axis_data("convolution_x_axis")
     dpg.fit_axis_data("convolution_y_axis")
 
@@ -177,10 +148,13 @@ with dpg.window() as main_window:
                             dpg.add_line_series([], [], parent="target_y_axis", tag="target_series_2",
                                                 label='reference')
 
-                        with dpg.plot(label="Convolution", anti_aliased=True):
+                        with dpg.plot(label="Convolution", anti_aliased=True) as plot:
                             dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="convolution_x_axis")
                             dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="convolution_y_axis")
+                            dpg.add_plot_axis(dpg.mvYAxis, label="foo", tag="foobar", )
                             dpg.add_line_series([], [], parent="convolution_y_axis", tag="convolution_series")
+                            dpg.add_drag_line(label="min", color=[255, 0, 0, 255], tag='convolution_dline1')
+                            dpg.add_drag_line(label="max", color=[255, 0, 0, 255], tag='convolution_dline2')
 
             with dpg.tab(label="Research", tag="research_tab"):
                 with dpg.child_window(tag="research_window", border=False):
