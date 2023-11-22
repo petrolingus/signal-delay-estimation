@@ -8,50 +8,64 @@ import threading
 from core import Core
 
 
-def applyNoise(signal, snr):
-    # Calculate the power of the signal
-    signal_power = np.square(signal).mean()
-    # Calculate the noise power based on the desired SNR and signal power
-    noise_power = signal_power / (10 ** (snr / 10))
-    # Generate the noise with the calculated power
-    noise = np.random.normal(0, np.sqrt(noise_power), len(signal))
-    return signal + noise
+def research():
 
+    sampling_frequency = dpg.get_value("sampling_frequency")
+    reference_sequence_length = dpg.get_value("reference_sequence_length")
+    baud_rate = dpg.get_value("baud_rate")
+    carrier_frequency = dpg.get_value("carrier_frequency")
+    time_delay = dpg.get_value("time_delay")
+    ampl0 = dpg.get_value("ampl0")
+    ampl1 = dpg.get_value("ampl1")
+    enable_noise = dpg.get_value("enable_noise")
 
-def ask(signal_xis, signal_yis, carrier_frequency, ampl0, ampl1):
-    new_binary = [(ampl0 if b == 0 else ampl1) for b in signal_yis]
-    return np.sin(2 * np.pi * carrier_frequency * signal_xis) * new_binary
+    print('sampling_frequency:', sampling_frequency)
+    print('reference_sequence_length:', reference_sequence_length)
+    print('baud_rate:', baud_rate)
+    print('carrier_frequency:', carrier_frequency)
+    print('time_delay:', time_delay)
+    print('ampl0:', ampl0)
+    print('ampl1:', ampl1)
+    print('enable_noise:', enable_noise)
 
+    core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, 0,
+                enable_noise, ampl0, ampl1)
 
-def update_data():
-    for snr in np.arange(10, -11, -1):
-        print(snr)
-        for i in range(100):
-            pass
+    # result = core.process()
+    # print('result:', result)
 
-    sample = 1
-    t0 = time.time()
-    frequency = 1.0
-
-    data_y = [0.0] * 100
-    data_x = [0.0] * 100
-    print('foobar')
-
-    while True:
-        # Get new data sample. Note we need both x and y values
-        # if we want a meaningful axis unit.
-        t = time.time() - t0
-        y = np.sin(2.0 * np.pi * frequency * t)
-        data_x.append(t)
+    n = 1000
+    data_x = []
+    data_y = []
+    for snr in np.arange(-20, 11, 0.1):
+        print('snr:', snr)
+        core.setSnr(snr)
+        counter = 0
+        for i in range(n):
+            if core.process():
+                counter += 1
+        data_x.append(snr)
+        y = counter / n
+        print(counter)
         data_y.append(y)
-
-        # set the series x and y to the last nsamples
         dpg.set_value('research_series', [np.array(data_x), np.array(data_y)])
         dpg.fit_axis_data('research_x_axis')
         dpg.fit_axis_data('research_y_axis')
 
-        time.sleep(0.01)
-        sample = sample + 1
+
+    # while True:
+    #     # Get new data sample. Note we need both x and y values
+    #     # if we want a meaningful axis unit.
+    #     t = time.time() - t0
+    #     y = np.sin(2.0 * np.pi * frequency * t)
+    #     data_x.append(t)
+    #     data_y.append(y)
+    #
+    #     # set the series x and y to the last nsamples
+    #
+    #
+    #     time.sleep(0.01)
+    #     sample = sample + 1
 
 
 def process():
@@ -169,8 +183,8 @@ dpg.setup_dearpygui()
 dpg.show_viewport()
 dpg.set_primary_window(main_window, True)
 
-# thread = threading.Thread(target=update_data)
-# thread.start()
+thread = threading.Thread(target=research)
+thread.start()
 
 dpg.start_dearpygui()
 dpg.destroy_context()

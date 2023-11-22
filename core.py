@@ -24,7 +24,7 @@ class Core:
         self.reference_sequence_length = reference_sequence_length
         self.baud_rate = baud_rate
         self.carrier_frequency = carrier_frequency * 1000
-        self.time_delay = time_delay
+        self.time_delay = time_delay / 1000
         self.snr = snr
         self.ampl0 = ampl0
         self.ampl1 = ampl1
@@ -43,6 +43,9 @@ class Core:
         self.min_delay = None
         self.max_delay = None
 
+    def setSnr(self, snr):
+        self.snr = snr
+
     def process(self):
         # Generate target sequence
         target_sequence = np.random.randint(2, size=self.target_sequence_length)
@@ -57,7 +60,7 @@ class Core:
                                          self.ampl1)
 
         # Generate reference signal and offset it
-        offset = int(np.rint((self.time_delay / 1000) * self.sampling_frequency))
+        offset = int(np.rint(self.time_delay * self.sampling_frequency))
         last_index = offset + self.samples_per_bit * self.reference_sequence_length
 
         if last_index > self.target_signal_xis.size:
