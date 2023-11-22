@@ -20,11 +20,11 @@ def applyNoise(signal, snr):
 class Core:
     def __init__(self, sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, snr,
                  enable_noise, ampl0, ampl1):
-        self.sampling_frequency = sampling_frequency * 1000
+        self.sampling_frequency = sampling_frequency * 1000  # Hz
         self.reference_sequence_length = reference_sequence_length
         self.baud_rate = baud_rate
-        self.carrier_frequency = carrier_frequency * 1000
-        self.time_delay = time_delay / 1000
+        self.carrier_frequency = carrier_frequency * 1000  # Hz
+        self.time_delay = time_delay / 1000  # seconds
         self.snr = snr
         self.ampl0 = ampl0
         self.ampl1 = ampl1

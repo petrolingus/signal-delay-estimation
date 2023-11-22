@@ -1,14 +1,11 @@
 import dearpygui.dearpygui as dpg
 import numpy as np
-import scipy as sci
-import time
-import collections
-import threading
+import asyncio
 
 from core import Core
 
 
-def research():
+async def research():
     sampling_frequency = dpg.get_value("sampling_frequency")
     reference_sequence_length = dpg.get_value("reference_sequence_length")
     baud_rate = dpg.get_value("baud_rate")
@@ -27,12 +24,60 @@ def research():
     print('ampl1:', ampl1)
     print('enable_noise:', enable_noise)
 
+    n = 100
+    data_y = []
+    data_x = []
+    #
+    # map_foo = {}
+    # for i in np.linspace(-20, 10, 50):
+    #     map_foo[i] = 0
+    #     data_x.append(i)
+    #     data_y.append(0)
+    #
+    # async def hello2(snr):
+    #     core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay,
+    #                 snr, enable_noise, ampl0, ampl1)
+    #     if core.process():
+    #         map_foo[snr] += 1
+    #     await asyncio.sleep(0)
+    #
+    # async def hello(snr):
+    #     await asyncio.gather(*[hello2(snr) for _ in range(n)])
+    #
+    # await asyncio.gather(*[hello(snr) for snr in np.linspace(-20, 10, 50)])
+    #
+    # dpg.set_value('research_series', [np.array(data_x), np.array(data_y)])
+    # dpg.fit_axis_data('research_x_axis')
+    # dpg.fit_axis_data('research_y_axis')
+
+    # map_foo = {}
+    # for i in np.linspace(-20, 10, 50):
+    #     map_foo[i] = 0
+    #
+    # async def hello2(snr):
+    #     core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay,
+    #                 snr, enable_noise, ampl0, ampl1)
+    #     if core.process():
+    #         map_foo[snr] += 1
+    #     await asyncio.sleep(0)
+    #
+    # async def hello(snr):
+    #     await asyncio.gather(*[hello2(snr) for _ in range(n)])
+    #
+    # await asyncio.gather(*[hello(snr) for snr in np.linspace(-20, 10, 50)])
+    #
+    #
+    # for k in np.linspace(-20, 10, 50):
+    #     data_x.append(k)
+    #     data_y.append(map_foo[k] / n)
+    #
+    # dpg.set_value('research_series', [np.array(data_x), np.array(data_y)])
+    # dpg.fit_axis_data('research_x_axis')
+    # dpg.fit_axis_data('research_y_axis')
+
     core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, 0,
                 enable_noise, ampl0, ampl1)
 
-    n = 100
-    data_x = []
-    data_y = []
     for snr in np.linspace(-20, 10, 50):
         print('snr:', snr)
         core.setSnr(snr)
@@ -49,9 +94,10 @@ def research():
 
 
 def research_start():
-    thread = threading.Thread(target=research)
-    thread.start()
     dpg.set_value('tab_bar', 'research_tab')
+    asyncio.run(research())
+    # thread = threading.Thread(target=research)
+    # thread.start()
 
 
 def process():
