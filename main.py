@@ -35,13 +35,21 @@ def research(mode, from_db, to_db, step_db, repeat_count):
         data_x.append(snr)
         y = counter / n
         data_y.append(y)
+        dpg.set_value(mode, [np.array(data_x), np.array(data_y)])
+        dpg.fit_axis_data('research_x_axis')
+        dpg.fit_axis_data('research_y_axis')
 
     stop = time.time()
-    print('Took:', (stop - start), 'sec')
+    print(mode, 'Took:', (stop - start), 'sec')
 
-    dpg.set_value(mode, [np.array(data_x), np.array(data_y)])
-    dpg.fit_axis_data('research_x_axis')
-    dpg.fit_axis_data('research_y_axis')
+    print('took0', core.took0)
+    print('took1', core.took1)
+    print('took2', core.took2)
+    print('took3', core.took3)
+    print('took4', core.took4)
+    print('took5', core.took5)
+    print('took6', core.took6)
+    print()
 
 
 def research_start():

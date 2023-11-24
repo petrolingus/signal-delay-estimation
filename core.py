@@ -4,7 +4,8 @@ import time
 
 
 def ask(signal_xis, signal_yis, carrier_frequency, ampl0, ampl1, is_research, ask_carr):
-    new_binary = [(ampl0 if b == 0 else ampl1) for b in signal_yis]
+    # new_binary = [(ampl0 if b == 0 else ampl1) for b in signal_yis]
+    new_binary = signal_yis * (ampl1 - ampl0) + ampl0
     if is_research:
         return ask_carr * new_binary
     else:
@@ -70,6 +71,14 @@ class Core:
         # Research
         self.is_research = None
         self.ask_carr = None
+        # Performance
+        self.took0 = 0
+        self.took1 = 0
+        self.took2 = 0
+        self.took3 = 0
+        self.took4 = 0
+        self.took5 = 0
+        self.took6 = 0
 
     def enableResearch(self):
         self.target_signal_xis = np.arange(0, self.target_signal_duration, 1 / self.sampling_frequency)
@@ -81,16 +90,22 @@ class Core:
 
     def process(self):
 
-        # start1 = time.time()
-
         # Generate target sequence
+        start_took0 = time.time()
         target_sequence = np.random.randint(2, size=self.target_sequence_length)
+        end_took0 = time.time()
+        self.took0 += end_took0 - start_took0
 
         # Generate target signal
+        start_took1 = time.time()
         if not self.is_research:
             self.target_signal_xis = np.arange(0, self.target_signal_duration, 1 / self.sampling_frequency)  # x
-        target_signal_yis = [target_sequence[int(np.floor(y * self.baud_rate))] for y in self.target_signal_xis]  # y
+        target_signal_yis = np.repeat(target_sequence, self.samples_per_bit)
+        # target_signal_yis = [target_sequence[int(np.floor(y * self.baud_rate))] for y in self.target_signal_xis]  # y
+        end_took1 = time.time()
+        self.took1 += end_took1 - start_took1
 
+        start_took2 = time.time()
         if self.modulation_mode == 0:
             self.target_modulation_yis = ask(self.target_signal_xis, target_signal_yis, self.carrier_frequency,
                                              self.ampl0, self.ampl1, self.is_research, self.ask_carr)
@@ -98,8 +113,11 @@ class Core:
             self.target_modulation_yis = fsk(self.target_signal_xis, target_signal_yis, self.carrier_frequency, 1)
         else:
             self.target_modulation_yis = psk(self.target_signal_xis, target_signal_yis, self.carrier_frequency)
+        end_took2 = time.time()
+        self.took2 += end_took2 - start_took2
 
         # Generate reference signal and offset it
+        start_took3 = time.time()
         offset = int(np.rint(self.time_delay * self.sampling_frequency))
         last_index = offset + self.samples_per_bit * self.reference_sequence_length
 
@@ -109,21 +127,34 @@ class Core:
             # dpg.set_value('time_delay', int((offset / self.sampling_frequency) * 1000))
         self.reference_modulation_xis = self.target_signal_xis[offset:last_index]
         self.reference_modulation_yis = self.target_modulation_yis[offset:last_index]
+        end_took3 = time.time()
+        self.took3 += end_took3 - start_took3
 
         # Apply noise
+        start_took4 = time.time()
         if self.enable_noise:
             self.target_modulation_yis = applyNoise(self.target_modulation_yis, self.snr)
             self.reference_modulation_yis = applyNoise(self.reference_modulation_yis, 10)
+        end_took4 = time.time()
+        self.took4 += end_took4 - start_took4
 
         # Calculate correlation
+        start_took5 = time.time()
         self.correlation_yis = sci.signal.correlate(self.target_modulation_yis, self.reference_modulation_yis,
                                                     mode='valid', method='fft')
-        self.correlation_xis = [i / self.sampling_frequency for i in np.arange(len(self.correlation_yis))]
+        # self.correlation_xis = [i / self.sampling_frequency for i in np.arange(len(self.correlation_yis))]
+        # self.correlation_xis = np.arange(0, self.reference_sequence_length / self.baud_rate, 1 / self.sampling_frequency)
+        self.correlation_xis = np.arange(len(self.correlation_yis)) / self.sampling_frequency
+        end_took5 = time.time()
+        self.took5 += end_took5 - start_took5
 
         # Find maximum
+        start_took6 = time.time()
         max_index = self.correlation_yis.argmax()
         self.min_delay = ((max_index - self.samples_per_bit / 2) / self.sampling_frequency)
         self.max_delay = ((max_index + self.samples_per_bit / 2) / self.sampling_frequency)
+        end_took6 = time.time()
+        self.took6 += end_took6 - start_took6
 
         # end1 = time.time()
         # print("Generate target sequence:", (end1 - start1))
