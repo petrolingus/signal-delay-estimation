@@ -5,7 +5,7 @@ import asyncio
 from core import Core
 
 
-async def research(mode):
+async def research(mode, from_db, to_db, step_db):
     sampling_frequency = dpg.get_value("sampling_frequency")
     reference_sequence_length = dpg.get_value("reference_sequence_length")
     baud_rate = dpg.get_value("baud_rate")
@@ -23,7 +23,8 @@ async def research(mode):
     n = 200
     data_y = []
     data_x = []
-    for snr in np.linspace(-20, 10, 20):
+    num = int((to_db - from_db) / step_db + 1)
+    for snr in np.linspace(from_db, to_db, num):
         core.setSnr(snr)
         counter = 0
         for i in range(n):
@@ -40,13 +41,17 @@ async def research(mode):
     await asyncio.sleep(0)
 
 
-async def hello():
-    await asyncio.gather(*[research(mode) for mode in ['ASK', 'FSK', 'PSK']])
+async def hello(from_db, to_db, step_db):
+    await asyncio.gather(*[research(mode, from_db, to_db, step_db) for mode in ['ASK', 'FSK', 'PSK']])
 
 
 def research_start():
+    dpg.set_axis_limits('research_x_axis', dpg.get_value("from_db"), dpg.get_value("to_db"))
     dpg.set_value('tab_bar', 'research_tab')
-    asyncio.run(hello())
+    from_db = dpg.get_value('from_db')
+    to_db = dpg.get_value('to_db')
+    step_db = dpg.get_value('step_db')
+    asyncio.run(hello(from_db, to_db, step_db))
 
 
 def process():
@@ -124,6 +129,20 @@ with dpg.window() as main_window:
                 dpg.add_text('Carrier Frequency Offset [kHz]:')
                 dpg.add_input_float(width=-1, default_value=0.05, tag='carrier_frequency_offset')
 
+            with dpg.collapsing_header(label="Research parameters"):
+                dpg.add_text('From [dB]:')
+                dpg.add_input_float(width=-1, default_value=-30, tag='from_db')
+                dpg.add_spacer()
+                dpg.add_text('To [dB]:')
+                dpg.add_input_float(width=-1, default_value=10, tag='to_db')
+                dpg.add_spacer()
+                dpg.add_text('Step [dB]:')
+                dpg.add_input_float(width=-1, default_value=1, tag='step_db')
+                dpg.add_spacer()
+                dpg.add_text('Repeat Count [number]:')
+                dpg.add_input_int(width=-1, default_value=500, tag='repeat_count')
+                dpg.add_spacer()
+
             dpg.add_button(label="Generate Signal", width=-1, callback=process)
             dpg.add_button(label="Start Research", width=-1, callback=research_start)
 
@@ -160,6 +179,7 @@ with dpg.window() as main_window:
                             dpg.add_plot_legend()
                             dpg.add_plot_axis(dpg.mvXAxis, label="SNR [dB]", tag="research_x_axis")
                             dpg.add_plot_axis(dpg.mvYAxis, label="Probability", tag="research_y_axis")
+                            dpg.set_axis_limits('research_y_axis', -0.1, 1.1)
                             dpg.add_line_series([], [], parent="research_y_axis", tag='ASK', label='ASK')
                             dpg.add_line_series([], [], parent="research_y_axis", tag='FSK', label='FSK')
                             dpg.add_line_series([], [], parent="research_y_axis", tag='PSK', label='PSK')
