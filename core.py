@@ -1,10 +1,14 @@
 import numpy as np
 import scipy as sci
+import time
 
 
-def ask(signal_xis, signal_yis, carrier_frequency, ampl0, ampl1):
+def ask(signal_xis, signal_yis, carrier_frequency, ampl0, ampl1, is_research, ask_carr):
     new_binary = [(ampl0 if b == 0 else ampl1) for b in signal_yis]
-    return np.sin(2 * np.pi * carrier_frequency * signal_xis) * new_binary
+    if is_research:
+        return ask_carr * new_binary
+    else:
+        return np.sin(2 * np.pi * carrier_frequency * signal_xis) * new_binary
 
 
 def fsk(signal_xis, signal_yis, carrier_frequency: float, mod_amp: float):
@@ -40,7 +44,13 @@ class Core:
         self.time_delay = time_delay / 1000  # seconds
         self.snr = snr
         self.enable_noise = enable_noise
-        self.modulation_mode = modulation_mode
+        if modulation_mode == 'ASK':
+            self.modulation_mode = 0
+        elif modulation_mode == 'FSK':
+            self.modulation_mode = 1
+        else:
+            self.modulation_mode = 2
+
         self.carrier_frequency_offset = carrier_frequency_offset
         self.ampl0 = ampl0
         self.ampl1 = ampl1
@@ -57,23 +67,34 @@ class Core:
         self.correlation_yis = None
         self.min_delay = None
         self.max_delay = None
+        # Research
+        self.is_research = None
+        self.ask_carr = None
+
+    def enableResearch(self):
+        self.target_signal_xis = np.arange(0, self.target_signal_duration, 1 / self.sampling_frequency)
+        self.ask_carr = np.sin(2 * np.pi * self.carrier_frequency * self.target_signal_xis)
+        self.is_research = True
 
     def setSnr(self, snr):
         self.snr = snr
 
     def process(self):
+
+        # start1 = time.time()
+
         # Generate target sequence
         target_sequence = np.random.randint(2, size=self.target_sequence_length)
 
         # Generate target signal
-        self.target_signal_xis = np.arange(0, self.target_signal_duration, 1 / self.sampling_frequency)  # x-samples
-        target_signal_yis = [target_sequence[int(np.floor(y * self.baud_rate))] for y in
-                             self.target_signal_xis]  # y-samples
+        if not self.is_research:
+            self.target_signal_xis = np.arange(0, self.target_signal_duration, 1 / self.sampling_frequency)  # x
+        target_signal_yis = [target_sequence[int(np.floor(y * self.baud_rate))] for y in self.target_signal_xis]  # y
 
-        if self.modulation_mode == 'ASK':
+        if self.modulation_mode == 0:
             self.target_modulation_yis = ask(self.target_signal_xis, target_signal_yis, self.carrier_frequency,
-                                             self.ampl0, self.ampl1)
-        elif self.modulation_mode == 'FSK':
+                                             self.ampl0, self.ampl1, self.is_research, self.ask_carr)
+        elif self.modulation_mode == 1:
             self.target_modulation_yis = fsk(self.target_signal_xis, target_signal_yis, self.carrier_frequency, 1)
         else:
             self.target_modulation_yis = psk(self.target_signal_xis, target_signal_yis, self.carrier_frequency)
@@ -100,7 +121,11 @@ class Core:
         self.correlation_xis = [i / self.sampling_frequency for i in np.arange(len(self.correlation_yis))]
 
         # Find maximum
-        self.min_delay = ((self.correlation_yis.argmax() - self.samples_per_bit / 2) / self.sampling_frequency)
-        self.max_delay = ((self.correlation_yis.argmax() + self.samples_per_bit / 2) / self.sampling_frequency)
+        max_index = self.correlation_yis.argmax()
+        self.min_delay = ((max_index - self.samples_per_bit / 2) / self.sampling_frequency)
+        self.max_delay = ((max_index + self.samples_per_bit / 2) / self.sampling_frequency)
+
+        # end1 = time.time()
+        # print("Generate target sequence:", (end1 - start1))
 
         return self.min_delay < self.time_delay < self.max_delay

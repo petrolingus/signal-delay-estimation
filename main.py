@@ -1,11 +1,11 @@
 import dearpygui.dearpygui as dpg
 import numpy as np
-import asyncio
+import time
 
 from core import Core
 
 
-async def research(mode, from_db, to_db, step_db):
+def research(mode, from_db, to_db, step_db, repeat_count):
     sampling_frequency = dpg.get_value("sampling_frequency")
     reference_sequence_length = dpg.get_value("reference_sequence_length")
     baud_rate = dpg.get_value("baud_rate")
@@ -19,8 +19,10 @@ async def research(mode, from_db, to_db, step_db):
 
     core = Core(sampling_frequency, reference_sequence_length, baud_rate, carrier_frequency, time_delay, snr,
                 enable_noise, mode, ampl0, ampl1, carrier_frequency_offset)
+    core.enableResearch()
 
-    n = 200
+    start = time.time()
+    n = repeat_count
     data_y = []
     data_x = []
     num = int((to_db - from_db) / step_db + 1)
@@ -34,15 +36,12 @@ async def research(mode, from_db, to_db, step_db):
         y = counter / n
         data_y.append(y)
 
-        dpg.set_value(mode, [np.array(data_x), np.array(data_y)])
-        dpg.fit_axis_data('research_x_axis')
-        dpg.fit_axis_data('research_y_axis')
+    stop = time.time()
+    print('Took:', (stop - start), 'sec')
 
-    await asyncio.sleep(0)
-
-
-async def hello(from_db, to_db, step_db):
-    await asyncio.gather(*[research(mode, from_db, to_db, step_db) for mode in ['ASK', 'FSK', 'PSK']])
+    dpg.set_value(mode, [np.array(data_x), np.array(data_y)])
+    dpg.fit_axis_data('research_x_axis')
+    dpg.fit_axis_data('research_y_axis')
 
 
 def research_start():
@@ -51,7 +50,10 @@ def research_start():
     from_db = dpg.get_value('from_db')
     to_db = dpg.get_value('to_db')
     step_db = dpg.get_value('step_db')
-    asyncio.run(hello(from_db, to_db, step_db))
+    repeat_count = dpg.get_value('repeat_count')
+    research('ASK', from_db, to_db, step_db, repeat_count)
+    research('FSK', from_db, to_db, step_db, repeat_count)
+    research('PSK', from_db, to_db, step_db, repeat_count)
 
 
 def process():
